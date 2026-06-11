@@ -297,10 +297,35 @@
       margin-bottom: 10px;
     }
 
+    /* Inbox preview stripe (subject + preheader as Gmail/Outlook show them) */
+    .inbox-preview {
+      border: 1px solid var(--border); border-radius: 4px;
+      background: white;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+    }
+    .inbox-meta {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 3px;
+    }
+    .inbox-sender { font-size: 12px; font-weight: 700; color: var(--dark); }
+    .inbox-time { font-size: 11px; color: var(--light); }
+    .inbox-line {
+      font-size: 12px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .inbox-subject { font-weight: 700; color: var(--dark); }
+    .inbox-preheader { color: var(--gray); font-weight: 400; }
+
     /* Email preview */
     .email-preview {
       border: 1px solid var(--border); border-radius: 4px;
       overflow: hidden; margin-bottom: 18px;
+    }
+    .email-image-note {
+      display: none;
+      font-size: 11px; color: var(--guardian-news-red);
+      margin-bottom: 8px;
     }
     .email-header-bar {
       background: var(--navy); padding: 10px 14px;
@@ -369,7 +394,20 @@
     #send-btn.ready:hover { background: var(--blue); transform: translateY(-1px); }
     #send-btn.disabled { background: var(--border); color: var(--light); cursor: not-allowed; }
     #send-btn.sent { background: var(--green); color: white; cursor: default; }
+    #send-btn.armed { background: var(--guardian-news-red); color: white; }
+    #send-btn.armed:hover { background: var(--guardian-news-red-dark); }
+    #send-btn.sending { background: var(--navy); color: white; opacity: 0.65; cursor: wait; }
     #send-hint { font-size: 12px; color: var(--light); text-align: center; margin-top: 6px; }
+    #send-hint.warn { color: #B45309; }
+    #send-cancel {
+      display: none;
+      width: 100%; margin-top: 6px;
+      background: none; border: none;
+      font-size: 12px; font-weight: 600; color: var(--gray);
+      text-decoration: underline; cursor: pointer;
+      font-family: inherit;
+    }
+    #send-cancel.show { display: block; }
 
     /* Role picker option styling (the select overlays the chip) */
     #role-picker option { color: var(--dark); background: white; }
@@ -566,6 +604,7 @@
       cursor: pointer;
       font-family: inherit;
     }
+    .role-caret { font-size: 8px; margin-left: 3px; opacity: 0.85; }
     .role-chip.role-trainee { background: var(--warn); }
     .role-chip.role-viewer  { background: var(--ink-500); }
 
@@ -582,11 +621,30 @@
     #success-banner.kind-test .success-dismiss,
     #success-banner.kind-practice .success-dismiss { color: var(--warn); }
 
-    /* Responsive */
+    /* Error banner (red) */
+    #success-banner.kind-error {
+      background: #fdecec;
+      border-color: #f5b5b5;
+    }
+    #success-banner.kind-error .success-title { color: var(--guardian-news-red-dark); }
+    #success-banner.kind-error .success-sub { color: var(--guardian-news-red); }
+    #success-banner.kind-error .success-dismiss { color: var(--guardian-news-red); }
+
+    /* Responsive: stack the preview panel under the form instead of hiding it,
+       so the Send button stays reachable at narrow widths. */
     @media (max-width: 900px) {
-      .stats-grid { grid-template-columns: 1fr 1fr; }
-      .analytics-row { grid-template-columns: 1fr; }
-      #preview-panel { display: none; }
+      body { height: auto; overflow: auto; }
+      #main { overflow: visible; }
+      .view.active { overflow: visible; }
+      #compose-view { flex-direction: column; }
+      #form-panel { overflow-y: visible; flex: none; }
+      #preview-panel {
+        width: 100%;
+        border-left: none;
+        border-top: 3px solid var(--navy);
+        overflow-y: visible;
+      }
+      .panel-spacer { display: none; }
     }
   </style>
 </head>
@@ -596,17 +654,17 @@
 <div id="sidebar">
   <div class="logo">D</div>
 
-  <button class="nav-btn active">
+  <span class="nav-btn active" aria-label="Compose" aria-current="page">
     ✏️<span class="tooltip">Compose</span>
-  </button>
-  <a href="/audit" class="nav-btn" id="audit-nav">
+  </span>
+  <a href="/audit" class="nav-btn" id="audit-nav" aria-label="Audit log">
     📋<span class="tooltip">Audit log</span>
   </a>
   <div class="nav-spacer"></div>
   <div class="role-chip-wrap">
     <div class="role-chip-label">Role</div>
     <div class="role-chip" id="role-chip">
-      <span id="role-chip-text">Sender</span>
+      <span id="role-chip-text">Sender</span><span class="role-caret">▾</span>
       <select id="role-picker" onchange="onRoleChange()" title="Change role" aria-label="Change role">
         <option value="sender">Sender</option>
         <option value="trainee">Trainee</option>
@@ -630,8 +688,8 @@
       </div>
 
       <!-- Success Banner -->
-      <div id="success-banner">
-        <span style="font-size:20px">✅</span>
+      <div id="success-banner" role="status" aria-live="polite">
+        <span style="font-size:20px" id="success-icon">✅</span>
         <div>
           <div class="success-title" id="success-title">Newsletter dispatched successfully</div>
           <div class="success-sub" id="success-sub"></div>
@@ -754,7 +812,18 @@
     <!-- Right Preview Panel -->
     <div id="preview-panel">
 
-      <div class="preview-label">Email preview</div>
+      <div class="preview-label">Inbox preview</div>
+
+      <!-- Inbox stripe: what the subject + preheader look like in the recipient's inbox -->
+      <div class="inbox-preview">
+        <div class="inbox-meta">
+          <span class="inbox-sender">The Guardian</span>
+          <span class="inbox-time">now</span>
+        </div>
+        <div class="inbox-line"><span class="inbox-subject" id="prev-subject-inbox">Breaking news: Your subject line</span><span class="inbox-preheader" id="prev-preheader-inbox"> — Your preheader appears here</span></div>
+      </div>
+
+      <div class="preview-label">Opened email</div>
 
       <!-- Email preview -->
       <div class="email-preview">
@@ -763,9 +832,9 @@
           <div class="email-brand">The Guardian</div>
         </div>
         <div class="email-body-area">
-          <div class="email-headline-prev" id="prev-subject-email">Breaking news: Your subject line</div>
-          <div class="email-preheader-prev" id="prev-preheader-email">Shown in inbox preview</div>
+          <div class="email-headline-prev" id="prev-headline-email">Your article headline</div>
           <img class="email-image-prev" id="prev-image-email" alt="" style="display:none;">
+          <div class="email-image-note" id="prev-image-err">⚠ Image failed to load — check the image URL</div>
           <div class="email-body-prev" id="prev-body-email">Your preview text will appear here as the opening body copy, giving readers context before they click through to the full article.</div>
           <a class="email-cta" href="#">Read more →</a>
         </div>
@@ -795,9 +864,10 @@
 
       <div class="panel-spacer"></div>
 
-      <!-- Send button -->
+      <!-- Send button (two-step: first click arms, second click confirms) -->
       <button id="send-btn" class="disabled" onclick="sendAlert()">Send Newsletter</button>
-      <div id="send-hint">Add a subject line and segment to send</div>
+      <div id="send-hint" aria-live="polite">Add a subject line and segment to send</div>
+      <button id="send-cancel" onclick="disarmSend()">Cancel — don't send</button>
     </div>
 
   </div><!-- /compose-view -->
@@ -827,8 +897,61 @@
     timing: 'immediate',
     role: '{{ role }}',
     sendingTest: false,
+    sending: false,       // a real send/schedule request is in flight
+    armed: false,         // send button is in the "click again to confirm" state
+    armTimer: null,
     articleImageUrl: '',  // stores the og:image so "Use article image" can restore it
   };
+
+  // ── DRAFT PERSISTENCE (survives the role-change reload) ──
+
+  const DRAFT_KEY = 'dispatch-draft';
+  const DRAFT_FIELDS = ['url', 'subject', 'preheader', 'headline', 'body', 'image-url', 'sched-date', 'sched-time', 'test-recipient'];
+
+  function saveDraft() {
+    const draft = { fields: {}, segments: state.segments, timing: state.timing, articleImageUrl: state.articleImageUrl };
+    DRAFT_FIELDS.forEach(id => { draft.fields[id] = document.getElementById(id).value; });
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch (e) { /* storage unavailable */ }
+  }
+
+  function restoreDraft() {
+    let draft = null;
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) draft = JSON.parse(raw);
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch (e) { return; }
+    if (!draft) return;
+    DRAFT_FIELDS.forEach(id => {
+      if (draft.fields && typeof draft.fields[id] === 'string') {
+        document.getElementById(id).value = draft.fields[id];
+      }
+    });
+    state.articleImageUrl = draft.articleImageUrl || '';
+    document.getElementById('use-article-img-btn').disabled = !state.articleImageUrl;
+    Object.entries(draft.segments || {}).forEach(([id, on]) => {
+      state.segments[id] = !!on;
+      const btn = document.getElementById('seg-' + id);
+      if (btn) btn.classList.toggle('selected', !!on);
+    });
+    updateSegmentHint();
+    updateSegmentPreview();
+    if (draft.timing === 'scheduled') selectTiming('scheduled');
+    updateCharCount('subject','slen',200);
+    updateCharCount('preheader','plen',100);
+    updateCharCount('headline','hlen',200);
+    updateCharCount('body','blen',280);
+
+    // The dup warning is a safety feature — it must survive the role-change
+    // reload, or it disappears exactly when a practice send becomes real.
+    const url = document.getElementById('url').value.trim();
+    if (url) {
+      const status = document.getElementById('url-status');
+      status.style.color = 'var(--green)';
+      status.textContent = '✓ Draft restored';
+      checkDuplicate(url);
+    }
+  }
 
   const ROLE_LABELS = { sender: 'Sender', trainee: 'Trainee', viewer: 'Viewer' };
 
@@ -859,17 +982,35 @@
     if (rp) rp.value = state.role;
     applyRoleChipStyle();
 
+    // Carry the role through to the audit page so its role chip tells the truth
+    document.getElementById('audit-nav').href = '/audit?role=' + encodeURIComponent(state.role);
+
+    // Can't schedule in the past
+    const schedDate = document.getElementById('sched-date');
+    const today = new Date();
+    schedDate.min = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    // Restore a draft saved before a role-change reload
+    restoreDraft();
+
     // Initialise char counter for default subject value
     updateCharCount('subject','slen',200);
     updatePreview();
     updateSendButton();
+
+    // Esc cancels an armed (awaiting-confirm) send
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.armed) disarmSend();
+    });
   }
 
   // ── ROLE ──────────────────────────────────────────────
 
   function onRoleChange() {
     const newRole = document.getElementById('role-picker').value;
-    // Reload preserving role in URL so backend renders the right template state.
+    // Save the draft, then reload preserving role in URL so the backend
+    // renders the right template state. The draft is restored after reload.
+    saveDraft();
     const u = new URL(window.location.href);
     u.searchParams.set('role', newRole);
     window.location.href = u.toString();
@@ -1030,21 +1171,33 @@
   function updatePreview() {
     const subject = document.getElementById('subject').value.trim();
     const preheader = document.getElementById('preheader').value.trim();
+    const headline = document.getElementById('headline').value.trim();
     const body = document.getElementById('body').value;
     const imageUrl = document.getElementById('image-url').value.trim();
 
-    document.getElementById('prev-subject-email').textContent =
+    // Inbox stripe: subject + preheader, as the recipient's inbox shows them
+    document.getElementById('prev-subject-inbox').textContent =
       subject || 'Breaking news: Your subject line';
-    document.getElementById('prev-preheader-email').textContent =
-      preheader || 'Shown in inbox preview';
+    document.getElementById('prev-preheader-inbox').textContent =
+      ' — ' + (preheader || 'Your preheader appears here');
+
+    // Opened email: headline is the heading subscribers see in the email body
+    document.getElementById('prev-headline-email').textContent =
+      headline || 'Your article headline';
 
     const img = document.getElementById('prev-image-email');
+    const imgErr = document.getElementById('prev-image-err');
     if (imageUrl) {
-      img.src = imageUrl;
-      img.style.display = 'block';
+      if (img.getAttribute('src') !== imageUrl) {
+        imgErr.style.display = 'none';
+        img.onerror = () => { img.style.display = 'none'; imgErr.style.display = 'block'; };
+        img.onload = () => { img.style.display = 'block'; imgErr.style.display = 'none'; };
+        img.src = imageUrl;
+      }
     } else {
       img.removeAttribute('src');
       img.style.display = 'none';
+      imgErr.style.display = 'none';
     }
 
     document.getElementById('prev-body-email').textContent =
@@ -1064,23 +1217,42 @@
 
   // ── SEND BUTTON ───────────────────────────────────────
 
+  function _scheduleState() {
+    if (state.timing !== 'scheduled') return 'ok';
+    const d = document.getElementById('sched-date').value;
+    const t = document.getElementById('sched-time').value;
+    if (!d || !t) return 'missing';
+    if (new Date(`${d}T${t}`) <= new Date()) return 'past';
+    return 'ok';
+  }
+
   function updateSendButton() {
     const btn = document.getElementById('send-btn');
     const testBtn = document.getElementById('send-test-btn-card');
     const hint = document.getElementById('send-hint');
+
+    // Any form change while armed cancels the pending confirmation
+    if (state.armed) {
+      state.armed = false;
+      clearTimeout(state.armTimer);
+      document.getElementById('send-cancel').classList.remove('show');
+    }
+    // Don't repaint the button mid-request
+    if (state.sending) return;
+
     const subject = document.getElementById('subject').value.trim();
+    const url = document.getElementById('url').value.trim();
     const hasSegment = Object.values(state.segments).some(Boolean);
-    const schedOk = state.timing !== 'scheduled' || (
-      document.getElementById('sched-date').value &&
-      document.getElementById('sched-time').value
-    );
+    const sched = _scheduleState();
     const isViewer = state.role === 'viewer';
     const canSend  = state.role === 'sender' || state.role === 'trainee';
-    const ready = subject.length > 0 && hasSegment && schedOk && canSend;
+    const ready = subject.length > 0 && hasSegment && sched === 'ok' && canSend;
 
     btn.className = ready ? 'ready' : 'disabled';
     btn.disabled = !ready;
     if (testBtn) testBtn.disabled = isViewer || subject.length === 0;
+
+    hint.className = '';
 
     if (isViewer) {
       btn.textContent = 'Send Newsletter';
@@ -1100,13 +1272,19 @@
         btn.textContent = '⚡ Send Newsletter';
         hint.textContent = '';
       }
+      if (!url) {
+        hint.textContent = '⚠ No article URL — the “Read more” link will go nowhere.';
+        hint.className = 'warn';
+      }
     } else {
       btn.textContent = state.role === 'trainee' ? '🎓 Practice send' : 'Send Newsletter';
-      hint.textContent = !subject     ? 'Add a subject line to continue'
-                       : !hasSegment  ? 'Select at least one segment to send.'
-                       : !schedOk     ? 'Set a date and time for the scheduled send'
-                                      : '';
-      if (state.role === 'trainee' && hasSegment && subject && schedOk) {
+      hint.textContent = !subject          ? 'Add a subject line to continue'
+                       : !hasSegment       ? 'Select at least one segment to send.'
+                       : sched === 'missing' ? 'Set a date and time for the scheduled send'
+                       : sched === 'past'  ? '⚠ Scheduled time is in the past — pick a future time.'
+                                           : '';
+      if (sched === 'past') hint.className = 'warn';
+      if (state.role === 'trainee' && hasSegment && subject && sched === 'ok') {
         hint.textContent = 'Trainee mode — sends are recorded but not delivered.';
       }
     }
@@ -1127,9 +1305,64 @@
     };
   }
 
+  function showBanner(kind, title, sub) {
+    const banner = document.getElementById('success-banner');
+    banner.classList.remove('kind-test', 'kind-practice', 'kind-error');
+    if (kind) banner.classList.add('kind-' + kind);
+    document.getElementById('success-icon').textContent =
+      ({ error: '❌', test: '🧪', practice: '🎓' })[kind] || '✅';
+    document.getElementById('success-title').textContent = title;
+    document.getElementById('success-sub').textContent = sub || '';
+    banner.classList.add('show');
+    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function disarmSend() {
+    state.armed = false;
+    clearTimeout(state.armTimer);
+    document.getElementById('send-cancel').classList.remove('show');
+    updateSendButton();
+  }
+
+  function _armSend() {
+    const btn = document.getElementById('send-btn');
+    const hint = document.getElementById('send-hint');
+    const count = Object.values(state.segments).filter(Boolean).length;
+    const names = SEGMENTS.filter(s => state.segments[s.id]).map(s => s.label).join(', ');
+    const isTrainee = state.role === 'trainee';
+    // The missing-URL warning must survive into the confirm prompt
+    const noUrl = document.getElementById('url').value.trim() ? '' : ' — ⚠ no article URL';
+
+    state.armed = true;
+    btn.className = 'armed';
+    if (isTrainee) {
+      btn.textContent = '🎓 Confirm practice ' + (state.timing === 'scheduled' ? 'schedule' : 'send');
+      hint.textContent = `Practice only — would go to ${names}${noUrl}. Click again to confirm.`;
+    } else if (state.timing === 'scheduled') {
+      const d = document.getElementById('sched-date').value;
+      const t = document.getElementById('sched-time').value;
+      btn.textContent = `Confirm: schedule for ${t}`;
+      hint.textContent = `Schedules to ${names} on ${d} at ${t} (local)${noUrl}. Click again to confirm.`;
+    } else {
+      btn.textContent = `Confirm: send to ${count} segment${count > 1 ? 's' : ''}`;
+      hint.textContent = `Sends now to ${names}${noUrl}. Click again to confirm.`;
+    }
+    hint.className = 'warn';
+    document.getElementById('send-cancel').classList.add('show');
+    // Auto-disarm so an armed button can't sit live indefinitely
+    state.armTimer = setTimeout(disarmSend, 8000);
+  }
+
   function sendAlert() {
     const btn = document.getElementById('send-btn');
-    if (btn.classList.contains('disabled') || btn.classList.contains('sent')) return;
+    if (state.sending || btn.classList.contains('disabled') || btn.classList.contains('sent')) return;
+
+    // Two-step confirm: first click arms, second click sends
+    if (!state.armed) { _armSend(); return; }
+
+    state.armed = false;
+    clearTimeout(state.armTimer);
+    document.getElementById('send-cancel').classList.remove('show');
 
     const schedDate = document.getElementById('sched-date').value;
     const schedTime = document.getElementById('sched-time').value;
@@ -1145,6 +1378,14 @@
       sched_at: schedAt,
     });
 
+    // Lock the button for the lifetime of the request — a second click must be a no-op
+    state.sending = true;
+    btn.disabled = true;
+    btn.className = 'sending';
+    btn.textContent = state.timing === 'scheduled' ? 'Scheduling…' : 'Sending…';
+    document.getElementById('send-hint').textContent = '';
+    document.getElementById('send-hint').className = '';
+
     fetch('/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
@@ -1152,8 +1393,9 @@
     })
     .then(r => r.json())
     .then(data => {
+      state.sending = false;
       if (!data.success) {
-        alert('Send failed: ' + (data.error || 'Unknown error'));
+        showBanner('error', 'Send failed', data.error || 'Unknown error');
         updateSendButton();
         return;
       }
@@ -1166,23 +1408,21 @@
         immediate: 'Breaking news email sent',
         scheduled: `Breaking news email scheduled for ${schedDate} ${schedTime} (local)`,
       };
-      const banner = document.getElementById('success-banner');
-      banner.classList.remove('kind-test','kind-practice');
       if (isPractice) {
-        document.getElementById('success-title').textContent = 'Practice send recorded (Braze not called)';
-        document.getElementById('success-sub').textContent = 'Trainee mode — nothing was delivered to subscribers.';
-        banner.classList.add('kind-practice');
+        showBanner('practice',
+          'Practice send recorded (Braze not called)',
+          state.timing === 'scheduled'
+            ? 'Trainee mode — nothing was delivered or scheduled.'
+            : 'Trainee mode — nothing was delivered to subscribers.');
       } else {
-        document.getElementById('success-title').textContent = titles[state.timing] || titles.immediate;
-        document.getElementById('success-sub').textContent = '';
+        showBanner(null, titles[state.timing] || titles.immediate, '');
       }
-      banner.classList.add('show');
-      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-      setTimeout(() => updateSendButton(), 3000);
+      setTimeout(() => { btn.disabled = false; updateSendButton(); }, 3000);
     })
     .catch(() => {
-      alert('Send failed: network error');
+      state.sending = false;
+      showBanner('error', 'Send failed', 'Network error — the newsletter was not sent. Try again.');
       updateSendButton();
     });
   }
@@ -1192,10 +1432,11 @@
     if (!testBtn || testBtn.disabled || state.sendingTest) return;
     const recipient = document.getElementById('test-recipient').value.trim();
     if (!recipient) {
-      alert('Enter a test recipient email');
+      showBanner('error', 'Test send failed', 'Enter a test recipient email first.');
       return;
     }
     state.sendingTest = true;
+    testBtn.disabled = true;
     testBtn.textContent = 'Sending test…';
 
     const payload = Object.assign(_collectPayload(), { test_recipient: recipient });
@@ -1208,29 +1449,26 @@
     .then(r => r.json())
     .then(data => {
       state.sendingTest = false;
+      testBtn.disabled = false;
       testBtn.textContent = '🧪 Send test email';
       if (!data.success) {
-        alert('Test send failed: ' + (data.error || 'Unknown error'));
+        showBanner('error', 'Test send failed', data.error || 'Unknown error');
         return;
       }
-      const banner = document.getElementById('success-banner');
-      banner.classList.remove('kind-practice');
-      banner.classList.add('kind-test');
-      document.getElementById('success-title').textContent = `Test email sent to ${recipient}`;
-      document.getElementById('success-sub').textContent = 'Test send only — subscribers were not emailed.';
-      banner.classList.add('show');
-      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      showBanner('test', `Test email sent to ${recipient}`,
+        'Test send only — subscribers were not emailed.');
     })
     .catch(() => {
       state.sendingTest = false;
+      testBtn.disabled = false;
       testBtn.textContent = '🧪 Send test email';
-      alert('Test send failed: network error');
+      showBanner('error', 'Test send failed', 'Network error — try again.');
     });
   }
 
   function dismissSuccess() {
     const banner = document.getElementById('success-banner');
-    banner.classList.remove('show','kind-test','kind-practice');
+    banner.classList.remove('show','kind-test','kind-practice','kind-error');
   }
 
   // ── BOOT ──────────────────────────────────────────────

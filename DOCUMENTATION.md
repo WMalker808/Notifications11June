@@ -269,7 +269,7 @@ The UI is a fixed-height single-page app with three structural zones:
 └──────────┴────────────────────────────┴──────────────┘
 ```
 
-The preview panel is hidden on viewports narrower than 900px.
+On viewports narrower than 900px the layout stacks: the preview panel (and its Send button) renders full-width below the form panel and the page becomes scrollable.
 
 ---
 
@@ -307,7 +307,7 @@ Displays five segment toggle buttons: United Kingdom, United States, Australia, 
 
 > **Important:** Segment selection is UI-only and not wired to the backend. The warning card in the UI makes this explicit. All sends go to the same Braze campaign regardless of which segments are selected. Segment targeting is marked as "Not in production".
 
-The segment state is tracked in `state.segments` (a plain object keyed by segment ID). `hasSegment` in `updateSendButton()` is hardcoded to `true`, meaning the send button does not actually require a segment to be selected.
+The segment state is tracked in `state.segments` (a plain object keyed by segment ID). `updateSendButton()` requires at least one selected segment before the send button enables. Selected segment labels are included in the send payload and recorded in the audit log (still not used for Braze targeting).
 
 #### Delivery & Timing Card
 
@@ -350,11 +350,13 @@ const state = {
 | `fetchArticle(url)` | POSTs to `/api/fetch-article`, populates headline and body fields on success, shows status message. |
 | `toggleSegment(id)` | Toggles a segment in `state.segments`, updates button appearance, hint text, preview pills, and send button. |
 | `selectTiming(t)` | Sets `state.timing`, updates timing button classes, shows/hides sub-panels, updates routing detail. |
-| `updatePreview()` | Syncs live email preview with current headline and body values. |
+| `updatePreview()` | Syncs the inbox-preview stripe (subject + preheader) and opened-email mock (headline, image with error fallback, body) with current field values. |
 | `updateCharCount(inputId, countId, max)` | Updates character count display and applies warning/over CSS classes. |
-| `updateSendButton()` | Enables/disables send button based on: headline non-empty, and (if scheduled) date+time filled. |
-| `sendAlert()` | POSTs to `/api/send` with all form values. Shows success banner on success, `alert()` on failure. Resets button after 3 seconds. |
-| `dismissSuccess()` | Hides the success banner. |
+| `updateSendButton()` | Enables/disables send button based on: subject non-empty, at least one segment, and (if scheduled) a date+time in the future. Warns when the article URL is empty. Disarms a pending confirm on any form change. |
+| `sendAlert()` | Two-step: first call arms the button ("Confirm: send to N segments", auto-disarms after 8s/Esc/cancel link); second call locks the button ("Sending…") and POSTs to `/api/send`. Shows success banner on success, red error banner on failure. Resets button 3 seconds after success. |
+| `saveDraft()` / `restoreDraft()` | Snapshot all form fields, segments and timing into `sessionStorage` before a role-change reload; restore (one-shot) on init, re-running the duplicate check if a URL is present. |
+| `showBanner(kind, title, sub)` | Renders the shared banner in success / test / practice / error variants. |
+| `dismissSuccess()` | Hides the banner. |
 
 ---
 
@@ -385,7 +387,7 @@ The right-hand panel renders a live miniature email mockup:
 Below the email mockup, the panel shows:
 - **Routing:** channel name and timing detail (updates when timing mode changes).
 - **Sending to:** pills for each selected segment.
-- **Send button:** state-aware (disabled/ready/sent), label changes per timing mode.
+- **Send button:** state-aware (disabled/ready/armed/sending/sent), label changes per timing mode and role; arming requires a second click to confirm before anything is dispatched.
 
 ---
 
