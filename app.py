@@ -238,6 +238,7 @@ def send_alert():
     image_url = data.get("image_url", "")
     timing = data.get("timing", "immediate")
     sched_at = data.get("sched_at")  # bare UTC ISO-8601, e.g. "2026-05-15T13:30:00"
+    segments = [s for s in (data.get("segments") or []) if isinstance(s, str)][:10]
     role = data.get("role", "sender")
     if role not in _VALID_ROLES:
         role = "sender"
@@ -263,12 +264,19 @@ def send_alert():
                 "subject": subject,
                 "preheader": preheader,
                 "url": url,
+                "segments": segments,
                 "status": "ok",
             }
             _append_audit(entry)
         elif timing == "scheduled":
             if not sched_at:
                 return jsonify({"success": False, "error": "Schedule time is required"}), 400
+            try:
+                sched_dt = datetime.strptime(sched_at, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                return jsonify({"success": False, "error": "Invalid schedule time format"}), 400
+            if sched_dt < datetime.now(timezone.utc) - timedelta(minutes=1):
+                return jsonify({"success": False, "error": "Scheduled time is in the past — pick a future time"}), 400
             if has_braze:
                 _braze_schedule(headline, subject, preheader, body, url, sched_at, image_url=image_url)
             sid = str(uuid.uuid4())
@@ -283,6 +291,7 @@ def send_alert():
                 "subject": subject,
                 "preheader": preheader,
                 "url": url,
+                "segments": segments,
                 "status": "ok",
             }
             # Trainee practice: do not register a real pending scheduled send.
@@ -331,6 +340,7 @@ def send_test():
         "preheader": preheader,
         "url": url,
         "test_recipient": test_recipient,
+        "segments": [s for s in (data.get("segments") or []) if isinstance(s, str)][:10],
         "status": "ok",
     }
     _append_audit(entry)
@@ -340,11 +350,15 @@ def send_test():
 @app.route("/audit")
 def audit():
     session["csrf_token"] = session.get("csrf_token") or secrets.token_hex(32)
+    role = request.args.get("role", "sender")
+    if role not in _VALID_ROLES:
+        role = "sender"
     return render_template(
         "audit.html",
         csrf_token=session["csrf_token"],
         audit_log=AUDIT_LOG[:200],
         scheduled=list(SCHEDULED_SENDS.values()),
+        role=role,
     )
 
 
