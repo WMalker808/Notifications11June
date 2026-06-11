@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dispatch — Audit log</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/guardian.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:   var(--guardian-blue-bright);
+      --gray:   var(--ink-500);
+      --dark:   var(--ink-900);
+      --mid:    var(--ink-700);
+      --light:  var(--ink-400);
+      --bg:     var(--ink-100);
+      --white:  #ffffff;
+      --navy:   var(--guardian-blue);
+      --sidebar-w: 60px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--dark);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* ── SIDEBAR (matches index.html) ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--navy);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 0 14px;
+      gap: 4px;
+      flex-shrink: 0;
+      border-right: 3px solid var(--blue);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .logo {
+      width: 34px; height: 34px;
+      background: var(--white);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--navy); font-weight: 900; font-size: 16px;
+      margin-bottom: 14px;
+      font-family: "Source Serif 4", Georgia, serif;
+      letter-spacing: -0.5px;
+    }
+    .nav-btn {
+      width: 42px; height: 42px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.55);
+      font-size: 19px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      position: relative;
+      text-decoration: none;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.1); }
+    .nav-btn.active { background: var(--blue); color: white; }
+    .nav-btn .tooltip {
+      display: none;
+      position: absolute;
+      left: 52px; top: 50%;
+      transform: translateY(-50%);
+      background: var(--navy);
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 2px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .nav-btn:hover .tooltip { display: block; }
+    .nav-spacer { flex: 1; }
+
+    .role-chip-wrap {
+      width: 100%;
+      padding: 4px 4px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .role-chip-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.55);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .role-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 48px;
+      padding: 4px 8px;
+      border-radius: 10px;
+      background: var(--blue);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    #content {
+      flex: 1;
+      padding: 24px 32px 60px;
+      min-width: 0;
+    }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600;
+      color: var(--navy);
+      text-decoration: none;
+      margin-bottom: 18px;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    .page-header {
+      margin-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+    .page-title {
+      font-size: 28px; font-weight: 700; color: var(--dark);
+      font-family: var(--font-serif);
+      letter-spacing: -0.3px;
+    }
+    .page-sub {
+      font-size: 13px; color: var(--gray); margin-top: 4px;
+    }
+
+    .section {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--navy);
+      border-radius: var(--radius-sm);
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .section-title {
+      font-size: 12px; font-weight: 700;
+      color: var(--navy);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .filter-input {
+      flex: 0 0 280px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--dark);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-family: inherit;
+    }
+    .filter-input:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      font-size: 11px; font-weight: 700;
+      color: var(--mid);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid var(--ink-100);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    td.url {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    td.url a { color: var(--navy); text-decoration: none; }
+    td.url a:hover { text-decoration: underline; }
+
+    .empty {
+      font-size: 13px; color: var(--gray); font-style: italic;
+      padding: 10px 0;
+    }
+
+    .cancel-btn {
+      padding: 5px 11px;
+      font-size: 12px; font-weight: 700;
+      border: 1px solid var(--guardian-news-red);
+      background: white;
+      color: var(--guardian-news-red);
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .cancel-btn:hover:not(:disabled) { background: #fdecec; }
+    .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .ts { color: var(--mid); font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+<div id="sidebar">
+  <div class="logo">D</div>
+
+  <a href="/" class="nav-btn" title="Compose">
+    ✏️<span class="tooltip">Compose</span>
+  </a>
+  <button class="nav-btn active">
+    📋<span class="tooltip">Audit log</span>
+  </button>
+  <div class="nav-spacer"></div>
+  <div class="role-chip-wrap">
+    <div class="role-chip-label">Role</div>
+    <div class="role-chip">Sender</div>
+  </div>
+</div>
+
+<div id="content">
+
+<a href="/" class="back-link">← Back to Dispatch</a>
+
+<div class="page-header">
+  <div class="page-title">Audit log</div>
+  <div class="page-sub">Recent newsletter activity and pending scheduled sends</div>
+</div>
+
+<!-- Pending scheduled sends -->
+<div class="section">
+  <div class="section-title">Pending scheduled sends</div>
+  {% if scheduled %}
+    <table>
+      <thead>
+        <tr>
+          <th>Headline</th>
+          <th>Scheduled time</th>
+          <th style="width: 100px;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in scheduled %}
+        <tr data-id="{{ s.id }}">
+          <td>{{ s.headline or s.subject or '(no headline)' }}</td>
+          <td class="ts">{{ s.sched_at }}</td>
+          <td><button class="cancel-btn"
+                      data-headline="{{ s.headline or s.subject or '(no headline)' }}"
+                      data-sched="{{ s.sched_at }}"
+                      onclick="cancelScheduled('{{ s.id }}', this)">Cancel</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty">No pending scheduled sends.</div>
+  {% endif %}
+</div>
+
+<!-- Recent activity -->
+<div class="section">
+  <div class="section-title">
+    <span>Recent activity</span>
+    <input type="text"
+           id="activity-filter"
+           class="filter-input"
+           placeholder="Filter by URL, subject, role or kind…"
+           oninput="filterActivity()">
+  </div>
+  {% if audit_log %}
+    <table id="activity-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Role</th>
+          <th>Kind</th>
+          <th>Timing</th>
+          <th>Subject</th>
+          <th>URL</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in audit_log %}
+        {% set kind_chip = {
+          'send': 'chip-blue',
+          'scheduled': 'chip-amber',
+          'test': 'chip-gray',
+          'trainee_practice': 'chip-amber',
+          'cancel': 'chip-red'
+        }.get(entry.kind, 'chip-gray') %}
+        {% set kind_label = {
+          'trainee_practice': 'Trainee practice'
+        }.get(entry.kind, entry.kind) %}
+        <tr>
+          <td class="ts">{{ entry.ts }}</td>
+          <td>{{ entry.role }}</td>
+          <td><span class="chip {{ kind_chip }}">{{ kind_label }}</span></td>
+          <td>{{ entry.timing }}</td>
+          <td>{{ entry.subject or '—' }}</td>
+          <td class="url">
+            {% if entry.url %}<a href="{{ entry.url }}" target="_blank" rel="noopener">{{ entry.url }}</a>{% else %}—{% endif %}
+          </td>
+          <td><span class="chip chip-green">{{ entry.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div id="filter-empty" class="empty" style="display:none;">No rows match that filter.</div>
+  {% else %}
+    <div class="empty">No activity yet.</div>
+  {% endif %}
+</div>
+
+</div><!-- /content -->
+
+<script>
+  const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+  function cancelScheduled(id, btn) {
+    const headline = btn && btn.dataset.headline ? btn.dataset.headline : '(this scheduled send)';
+    const sched = btn && btn.dataset.sched ? btn.dataset.sched : '';
+    const msg = sched
+      ? `Cancel the scheduled send "${headline}"?\n\nScheduled for ${sched}.`
+      : `Cancel the scheduled send "${headline}"?`;
+    if (!confirm(msg)) return;
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+
+    fetch('/api/cancel-scheduled', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify({ id }),
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (!ok || !d.success) {
+        alert('Cancel failed: ' + (d.error || 'Unknown error'));
+        if (btn) { btn.disabled = false; btn.textContent = 'Cancel'; }
+        return;
+      }
+      window.location.reload();
+    })
+    .catch(() => {
+      alert('Cancel failed: network error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Cancel'; }
+    });
+  }
+
+  function filterActivity() {
+    const q = (document.getElementById('activity-filter').value || '').trim().toLowerCase();
+    const table = document.getElementById('activity-table');
+    if (!table) return;
+    const rows = table.tBodies[0] ? table.tBodies[0].rows : [];
+    let visible = 0;
+    for (const row of rows) {
+      const text = row.textContent.toLowerCase();
+      const show = !q || text.indexOf(q) !== -1;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    const empty = document.getElementById('filter-empty');
+    if (empty) empty.style.display = (q && visible === 0) ? '' : 'none';
+  }
+</script>
+</body>
+</html>

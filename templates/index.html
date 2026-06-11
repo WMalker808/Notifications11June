@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dispatch — Newsletter Hub</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/guardian.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:   var(--guardian-blue-bright);
+      --blue-lt: #e6eefb;
+      --purple: #6D287B;
+      --pur-lt:  #F5EEF8;
+      --green:  var(--success);
+      --grn-lt: #e6f3ec;
+      --gray:   var(--ink-500);
+      --dark:   var(--ink-900);
+      --mid:    var(--ink-700);
+      --light:  var(--ink-400);
+      --bg:     var(--ink-100);
+      --white:  #ffffff;
+      --navy:   var(--guardian-blue);
+      --sidebar-w: 60px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--dark);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--navy);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 0 14px;
+      gap: 4px;
+      flex-shrink: 0;
+      border-right: 3px solid var(--blue);
+    }
+    .logo {
+      width: 34px; height: 34px;
+      background: var(--white);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--navy); font-weight: 900; font-size: 16px;
+      margin-bottom: 14px;
+      font-family: "Source Serif 4", Georgia, serif;
+      letter-spacing: -0.5px;
+    }
+    .nav-btn {
+      width: 42px; height: 42px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.55);
+      font-size: 19px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      position: relative;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.1); }
+    .nav-btn.active { background: var(--blue); color: white; }
+    .nav-btn .tooltip {
+      display: none;
+      position: absolute;
+      left: 52px; top: 50%;
+      transform: translateY(-50%);
+      background: var(--navy);
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 2px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .nav-btn:hover .tooltip { display: block; }
+    .nav-spacer { flex: 1; }
+    .avatar {
+      width: 32px; height: 32px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.8); font-size: 13px; font-weight: 600;
+      margin-top: 6px;
+    }
+
+    /* ── MAIN AREA ── */
+    #main { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── VIEWS ── */
+    .view { display: none; flex: 1; overflow: hidden; }
+    .view.active { display: flex; }
+
+    /* ── COMPOSE VIEW ── */
+    #compose-view { flex-direction: row; }
+
+    #form-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+    }
+    #form-panel::-webkit-scrollbar { width: 5px; }
+    #form-panel::-webkit-scrollbar-track { background: transparent; }
+    #form-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .page-header {
+      margin-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+    .page-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 17px; font-weight: 700; color: var(--blue);
+      text-transform: uppercase; letter-spacing: 1.2px;
+      margin-bottom: 5px;
+    }
+    .page-title {
+      font-size: 28px; font-weight: 700; color: var(--dark);
+      font-family: var(--font-serif);
+      letter-spacing: -0.3px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--navy);
+      border-radius: var(--radius-sm);
+      padding: 18px 20px;
+      margin-bottom: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card-title {
+      font-size: 12px; font-weight: 700;
+      color: var(--navy);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .dev-badge {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+      background: #FEF3C7; color: #92400E;
+      border: 1px solid #FDE68A;
+      padding: 2px 8px; border-radius: 3px;
+      text-transform: uppercase;
+    }
+
+    /* Form elements */
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    label {
+      display: block;
+      font-size: 13px; font-weight: 600; color: var(--mid);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+    label .req { color: var(--guardian-news-red); }
+    .char-count {
+      text-align: right; font-size: 12px; color: var(--light); margin-top: 3px;
+    }
+    .char-count.warn { color: #F59E0B; }
+    .char-count.over { color: var(--purple); }
+
+    /* Channel info card */
+    .channel-info {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px;
+      border: 1px solid #DDD6FE;
+      border-left: 4px solid var(--purple);
+      border-radius: 2px;
+      background: var(--pur-lt);
+    }
+    .channel-icon { font-size: 24px; flex-shrink: 0; }
+    .channel-name { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+    .channel-sub  { font-size: 13px; color: var(--gray); }
+    .channel-badge {
+      margin-left: auto; flex-shrink: 0;
+      font-size: 12px; font-weight: 800;
+      padding: 3px 9px; border-radius: 4px;
+      background: #EDE9FE; color: var(--purple);
+    }
+
+    /* Segment buttons */
+    .segment-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .segment-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 13px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      font-size: 14px; font-weight: 500; color: var(--mid);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .segment-btn:hover { border-color: var(--blue); background: var(--blue-lt); }
+    .segment-btn.selected {
+      border-color: var(--navy);
+      background: var(--navy);
+      color: white;
+      font-weight: 600;
+    }
+    .global-tag {
+      font-size: 10px; font-weight: 800;
+      background: var(--blue-lt); color: var(--navy);
+      padding: 1px 5px; border-radius: 2px;
+    }
+    .segment-btn.selected .global-tag {
+      background: rgba(255,255,255,0.2); color: white;
+    }
+    .segment-hint { font-size: 12px; color: var(--light); margin-top: 8px; }
+    .segment-hint.warn { color: #F59E0B; }
+
+    /* Timing */
+    .timing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .timing-btn {
+      padding: 12px 14px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--border);
+      background: var(--white);
+      text-align: left; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .timing-btn:hover { border-top-color: var(--blue); }
+    .timing-btn.selected-immediate {
+      border-top-color: var(--navy); background: var(--blue-lt);
+    }
+    .timing-btn.selected-scheduled {
+      border-top-color: #E05E00; background: #FFF7F0;
+    }
+    .timing-label { font-size: 14px; font-weight: 700; margin-bottom: 3px; color: var(--mid); }
+    .timing-btn.selected-immediate .timing-label { color: var(--navy); }
+    .timing-btn.selected-scheduled .timing-label { color: #E05E00; }
+    .timing-desc { font-size: 12px; color: var(--gray); }
+
+    /* Scheduled time panel */
+    #scheduled-panel {
+      display: none;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #FFFBEB;
+      border-radius: 8px;
+      border: 1px solid #FDE68A;
+      margin-bottom: 10px;
+    }
+    #scheduled-panel.show { display: flex; }
+    .date-row { display: flex; gap: 12px; width: 100%; }
+    .date-row > div { flex: 1; }
+
+    /* Success banner */
+    #success-banner {
+      display: none;
+      background: var(--grn-lt);
+      border: 1px solid #6EE7B7;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      align-items: center; gap: 12px;
+    }
+    #success-banner.show { display: flex; }
+    .success-title { font-size: 14px; font-weight: 700; color: #065F46; }
+    .success-sub { font-size: 12px; color: #047857; margin-top: 2px; }
+    .success-dismiss {
+      margin-left: auto; background: none; border: none;
+      color: #047857; cursor: pointer; font-size: 17px;
+    }
+
+    /* ── RIGHT PREVIEW PANEL ── */
+    #preview-panel {
+      width: 300px;
+      background: var(--white);
+      border-left: 3px solid var(--navy);
+      display: flex; flex-direction: column;
+      padding: 18px 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .preview-label {
+      font-size: 11px; font-weight: 800; color: var(--light);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+
+    /* Email preview */
+    .email-preview {
+      border: 1px solid var(--border); border-radius: 4px;
+      overflow: hidden; margin-bottom: 18px;
+    }
+    .email-header-bar {
+      background: var(--navy); padding: 10px 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .email-logo {
+      width: 20px; height: 20px;
+      background: var(--white); border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--navy); font-size: 10px; font-weight: 900;
+      font-family: "Source Serif 4", Georgia, serif;
+    }
+    .email-brand { color: white; font-size: 13px; font-weight: 700; }
+    .email-body-area { padding: 14px; background: white; }
+    .email-headline-prev {
+      font-size: 17px; font-weight: 700; color: var(--dark); margin-bottom: 8px; line-height: 1.4;
+      font-family: "Source Serif 4", Georgia, serif;
+    }
+    .email-body-prev { font-size: 13px; color: var(--gray); line-height: 1.6; margin-bottom: 10px; }
+    .email-cta {
+      display: inline-block; padding: 7px 14px;
+      background: var(--navy); color: white;
+      font-size: 12px; font-weight: 700; border-radius: 2px;
+      text-decoration: none;
+    }
+
+    /* Routing summary */
+    .panel-section-title {
+      font-size: 11px; font-weight: 800; color: var(--light);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+    .route-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 10px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 6px;
+    }
+    .route-channel { font-size: 13px; font-weight: 600; color: var(--mid); }
+    .route-detail { font-size: 11px; color: var(--light); margin-top: 1px; }
+    .route-badge {
+      font-size: 11px; font-weight: 800;
+      padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+    }
+    .route-braze { background: #EDE9FE; color: var(--purple); }
+
+    /* Segment summary */
+    .segment-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
+    .segment-pill {
+      font-size: 12px; background: var(--navy); color: white;
+      padding: 3px 8px; border-radius: 2px; font-weight: 600;
+    }
+    .segment-pill-empty { font-size: 12px; color: var(--light); font-style: italic; }
+
+    /* Send button */
+    .panel-spacer { flex: 1; }
+    #send-btn {
+      width: 100%; padding: 13px;
+      border: none; border-radius: 2px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      letter-spacing: 0.2px;
+    }
+    #send-btn.ready { background: var(--navy); color: white; }
+    #send-btn.ready:hover { background: var(--blue); transform: translateY(-1px); }
+    #send-btn.disabled { background: var(--border); color: var(--light); cursor: not-allowed; }
+    #send-btn.sent { background: var(--green); color: white; cursor: default; }
+    #send-hint { font-size: 12px; color: var(--light); text-align: center; margin-top: 6px; }
+
+    /* Role picker option styling (the select overlays the chip) */
+    #role-picker option { color: var(--dark); background: white; }
+
+    /* Duplicate warning banner */
+    #dup-warn {
+      border-top-color: #E05E00;
+      background: #FFF7F0;
+      border-color: #FED7AA;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #dup-warn .dup-icon { font-size: 18px; }
+    #dup-warn .dup-text { font-size: 13px; color: #9A3412; }
+
+    /* Test recipient + test-send button */
+    .test-row {
+      display: flex; gap: 6px; align-items: center;
+      margin-bottom: 8px;
+    }
+    .test-row label {
+      font-size: 11px; font-weight: 700; color: var(--light);
+      margin-bottom: 0; text-transform: uppercase; letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+    #test-recipient {
+      flex: 1;
+      padding: 6px 8px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-family: inherit;
+    }
+    #send-test-btn {
+      width: 100%;
+      padding: 9px;
+      margin-top: 8px;
+      border: 1px solid var(--navy);
+      border-radius: 2px;
+      background: white;
+      color: var(--navy);
+      font-size: 13px; font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    #send-test-btn:hover:not(:disabled) { background: var(--blue-lt); }
+    #send-test-btn:disabled { color: var(--light); border-color: var(--border); cursor: not-allowed; }
+
+    /* Email preheader in preview */
+    .email-preheader-prev {
+      font-size: 12px; color: var(--light); margin-bottom: 8px; font-style: italic;
+    }
+    .email-image-prev {
+      width: 100%; max-height: 140px; object-fit: cover;
+      display: block; margin-bottom: 10px; border-radius: 2px;
+    }
+
+    /* Field helper text (under label, above input) */
+    .field-hint {
+      color: var(--ink-500);
+      font-size: 12px;
+      margin-top: 2px;
+      margin-bottom: 4px;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 400;
+    }
+
+    /* Image URL row: input + "use article image" ghost button */
+    .image-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .image-row .input { flex: 1; }
+    .ghost-btn {
+      flex-shrink: 0;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      background: white;
+      color: var(--navy);
+      border: 1px solid var(--navy);
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .ghost-btn:hover:not(:disabled) { background: var(--blue-lt); }
+    .ghost-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: var(--border);
+      color: var(--light);
+    }
+
+    /* Test-send mini-card inside the form panel */
+    .test-card {
+      background: var(--white);
+      border: 1.5px dashed var(--ink-400);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .test-card-title {
+      font-size: 12px; font-weight: 700;
+      color: var(--ink-700);
+      text-transform: uppercase; letter-spacing: 0.6px;
+      margin-bottom: 8px;
+    }
+    .test-card-hint {
+      font-size: 12px; color: var(--ink-500); margin-bottom: 10px;
+    }
+    .test-card-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .test-card-row label {
+      font-size: 11px; font-weight: 700;
+      color: var(--ink-500);
+      text-transform: uppercase; letter-spacing: 0.4px;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+    .test-card-row input {
+      flex: 1;
+      padding: 7px 9px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-family: inherit;
+    }
+    #send-test-btn-card {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      background: transparent;
+      color: var(--ink-700);
+      border: 1px solid var(--ink-400);
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: inherit;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #send-test-btn-card:hover:not(:disabled) {
+      background: var(--ink-100);
+      border-color: var(--ink-700);
+    }
+    #send-test-btn-card:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Role chip in sidebar (replaces tiny native select look) */
+    .role-chip-wrap {
+      width: 100%;
+      padding: 4px 4px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .role-chip-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.55);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .role-chip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 48px;
+      padding: 4px 8px;
+      border-radius: 10px;
+      background: var(--blue);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .role-chip select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .role-chip.role-trainee { background: var(--warn); }
+    .role-chip.role-viewer  { background: var(--ink-500); }
+
+    /* Trainee-practice success banner (amber) */
+    #success-banner.kind-test,
+    #success-banner.kind-practice {
+      background: #fcf3de;
+      border-color: #f6d77a;
+    }
+    #success-banner.kind-test .success-title,
+    #success-banner.kind-practice .success-title { color: #7a5a00; }
+    #success-banner.kind-test .success-sub,
+    #success-banner.kind-practice .success-sub { color: var(--warn); }
+    #success-banner.kind-test .success-dismiss,
+    #success-banner.kind-practice .success-dismiss { color: var(--warn); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .analytics-row { grid-template-columns: 1fr; }
+      #preview-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+<div id="sidebar">
+  <div class="logo">D</div>
+
+  <button class="nav-btn active">
+    ✏️<span class="tooltip">Compose</span>
+  </button>
+  <a href="/audit" class="nav-btn" id="audit-nav">
+    📋<span class="tooltip">Audit log</span>
+  </a>
+  <div class="nav-spacer"></div>
+  <div class="role-chip-wrap">
+    <div class="role-chip-label">Role</div>
+    <div class="role-chip" id="role-chip">
+      <span id="role-chip-text">Sender</span>
+      <select id="role-picker" onchange="onRoleChange()" title="Change role" aria-label="Change role">
+        <option value="sender">Sender</option>
+        <option value="trainee">Trainee</option>
+        <option value="viewer">Viewer</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MAIN ══════════════════════ -->
+<div id="main">
+
+  <!-- ════════════ COMPOSE VIEW ════════════ -->
+  <div class="view active" id="compose-view">
+
+    <!-- Form Panel -->
+    <div id="form-panel" class="thin-scroll">
+      <div class="page-header">
+        <div class="page-tag"><span class="live-dot"></span>Dispatch notifications tool</div>
+        <div class="page-title">Breaking news newsletter</div>
+      </div>
+
+      <!-- Success Banner -->
+      <div id="success-banner">
+        <span style="font-size:20px">✅</span>
+        <div>
+          <div class="success-title" id="success-title">Newsletter dispatched successfully</div>
+          <div class="success-sub" id="success-sub"></div>
+        </div>
+        <button class="success-dismiss" onclick="dismissSuccess()">×</button>
+      </div>
+
+      <!-- Duplicate warning (hidden by default) -->
+      <div id="dup-warn" class="card" style="display:none;">
+        <span class="dup-icon">⚠️</span>
+        <div class="dup-text" id="dup-warn-text">This URL was already sent recently — proceed with caution.</div>
+      </div>
+
+      <!-- Content -->
+      <div class="card">
+        <div class="card-title">Content</div>
+        <div class="field">
+          <label for="url">Guardian article URL</label>
+          <input type="url" id="url" class="input" placeholder="https://www.theguardian.com/…" oninput="onUrlInput()">
+          <div id="url-status" style="font-size:12px;color:var(--light);margin-top:4px;min-height:16px;"></div>
+        </div>
+        <div class="field">
+          <label for="subject">Subject line <span class="req">*</span></label>
+          <div class="field-hint">Shown in the recipient's inbox subject line.</div>
+          <input type="text" id="subject" class="input" placeholder="Breaking news: …" value="Breaking news: "
+            oninput="updateCharCount('subject','slen',200); updatePreview()">
+          <div class="char-count" id="slen">0 / 200</div>
+        </div>
+        <div class="field">
+          <label for="preheader">Preheader</label>
+          <div class="field-hint">Shown next to the subject in the inbox preview line.</div>
+          <input type="text" id="preheader" class="input" placeholder="Shown in inbox preview" maxlength="100"
+            oninput="updateCharCount('preheader','plen',100); updatePreview()">
+          <div class="char-count" id="plen">0 / 100</div>
+        </div>
+        <div class="field">
+          <label for="headline">Article headline</label>
+          <div class="field-hint">Displayed inside the email body as the main heading.</div>
+          <input type="text" id="headline" class="input" placeholder="Enter the article headline…" maxlength="200"
+            oninput="updateCharCount('headline','hlen',200); updatePreview()">
+          <div class="char-count" id="hlen">0 / 200</div>
+        </div>
+        <div class="field">
+          <label for="body">Preview text / body summary</label>
+          <textarea id="body" class="textarea" placeholder="Optional — appears as the email opening body copy…"
+            maxlength="280" oninput="updateCharCount('body','blen',280); updatePreview()"></textarea>
+          <div class="char-count" id="blen">0 / 280</div>
+        </div>
+        <div class="field">
+          <label for="image-url">Image URL</label>
+          <div class="image-row">
+            <input type="url" id="image-url" class="input" placeholder="https://..." oninput="updatePreview()">
+            <button type="button" id="use-article-img-btn" class="ghost-btn" onclick="useArticleImage()" disabled title="Restore the article's default image">Use article image</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Channel -->
+      <div class="card">
+        <div class="card-title">Channel</div>
+        <div class="channel-info">
+          <div class="channel-icon">📧</div>
+          <div>
+            <div class="channel-name">Newsletter</div>
+            <div class="channel-sub">Email</div>
+          </div>
+          <span class="channel-badge">Email</span>
+        </div>
+      </div>
+
+      <!-- Audience -->
+      <div class="card">
+        <div class="card-title">Audience Segments</div>
+        <div class="segment-group" id="seg-group"></div>
+        <div class="segment-hint" id="seg-hint">Select at least one segment</div>
+      </div>
+
+      <!-- Delivery -->
+      <div class="card">
+        <div class="card-title">Delivery &amp; Timing</div>
+        <div class="timing-grid">
+          <button class="timing-btn selected-immediate" id="timing-immediate" onclick="selectTiming('immediate')">
+            <div class="timing-label">⚡ Immediate</div>
+            <div class="timing-desc">Send right now</div>
+          </button>
+          <button class="timing-btn" id="timing-scheduled" onclick="selectTiming('scheduled')">
+            <div class="timing-label">🕐 Scheduled</div>
+            <div class="timing-desc">Pick a date and time</div>
+          </button>
+        </div>
+
+        <!-- Scheduled panel -->
+        <div id="scheduled-panel">
+          <div class="date-row">
+            <div>
+              <label>Date</label>
+              <input type="date" id="sched-date" class="input" oninput="updateSendButton()">
+            </div>
+            <div>
+              <label>Time (local)</label>
+              <input type="time" id="sched-time" class="input" oninput="updateSendButton()">
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Test before sending mini-card -->
+      <div class="test-card">
+        <div class="test-card-title">Test before sending</div>
+        <div class="test-card-hint">Send a one-off test copy to yourself or a colleague — never reaches subscribers.</div>
+        <div class="test-card-row">
+          <label for="test-recipient">To</label>
+          <input type="email" id="test-recipient" value="test@theguardian.com">
+          <button id="send-test-btn-card" onclick="sendTest()">🧪 Send test email</button>
+        </div>
+      </div>
+    </div><!-- /form-panel -->
+
+    <!-- Right Preview Panel -->
+    <div id="preview-panel">
+
+      <div class="preview-label">Email preview</div>
+
+      <!-- Email preview -->
+      <div class="email-preview">
+        <div class="email-header-bar">
+          <div class="email-logo">D</div>
+          <div class="email-brand">The Guardian</div>
+        </div>
+        <div class="email-body-area">
+          <div class="email-headline-prev" id="prev-subject-email">Breaking news: Your subject line</div>
+          <div class="email-preheader-prev" id="prev-preheader-email">Shown in inbox preview</div>
+          <img class="email-image-prev" id="prev-image-email" alt="" style="display:none;">
+          <div class="email-body-prev" id="prev-body-email">Your preview text will appear here as the opening body copy, giving readers context before they click through to the full article.</div>
+          <a class="email-cta" href="#">Read more →</a>
+        </div>
+      </div>
+
+      <!-- Routing -->
+      <div style="margin-bottom:14px;">
+        <div class="panel-section-title">Routing</div>
+        <div id="routing-rows">
+          <div class="route-row">
+            <div>
+              <div class="route-channel">Newsletter (Email)</div>
+              <div class="route-detail" id="routing-detail">Immediate send</div>
+            </div>
+            <span class="route-badge route-braze">Email</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audience -->
+      <div style="margin-bottom:14px;">
+        <div class="panel-section-title">Sending to</div>
+        <div id="seg-pills-preview" class="segment-pills">
+          <span class="segment-pill-empty">No segments selected</span>
+        </div>
+      </div>
+
+      <div class="panel-spacer"></div>
+
+      <!-- Send button -->
+      <button id="send-btn" class="disabled" onclick="sendAlert()">Send Newsletter</button>
+      <div id="send-hint">Add a subject line and segment to send</div>
+    </div>
+
+  </div><!-- /compose-view -->
+
+
+
+
+
+</div><!-- /main -->
+
+
+<script>
+  const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+  // ── DATA ──────────────────────────────────────────────
+
+  const SEGMENTS = [
+    { id: 'uk',     label: 'United Kingdom', flag: '🇬🇧' },
+    { id: 'us',     label: 'United States',  flag: '🇺🇸' },
+    { id: 'au',     label: 'Australia',      flag: '🇦🇺' },
+    { id: 'eu',     label: 'Europe',         flag: '🇪🇺' },
+    { id: 'global', label: 'Global',         flag: '🌍', isGlobal: true },
+  ];
+
+  const state = {
+    segments: {},
+    timing: 'immediate',
+    role: '{{ role }}',
+    sendingTest: false,
+    articleImageUrl: '',  // stores the og:image so "Use article image" can restore it
+  };
+
+  const ROLE_LABELS = { sender: 'Sender', trainee: 'Trainee', viewer: 'Viewer' };
+
+  function applyRoleChipStyle() {
+    const chip = document.getElementById('role-chip');
+    const txt = document.getElementById('role-chip-text');
+    if (!chip || !txt) return;
+    chip.classList.remove('role-sender','role-trainee','role-viewer');
+    chip.classList.add('role-' + state.role);
+    txt.textContent = ROLE_LABELS[state.role] || 'Sender';
+  }
+
+  // ── INIT ──────────────────────────────────────────────
+
+  function init() {
+    const sg = document.getElementById('seg-group');
+    SEGMENTS.forEach(seg => {
+      const btn = document.createElement('button');
+      btn.className = 'segment-btn';
+      btn.id = 'seg-' + seg.id;
+      btn.innerHTML = `<span>${seg.flag}</span><span>${seg.label}</span>${seg.isGlobal ? '<span class="global-tag">ALL</span>' : ''}`;
+      btn.onclick = () => toggleSegment(seg.id);
+      sg.appendChild(btn);
+    });
+
+    // Set role picker to current role
+    const rp = document.getElementById('role-picker');
+    if (rp) rp.value = state.role;
+    applyRoleChipStyle();
+
+    // Initialise char counter for default subject value
+    updateCharCount('subject','slen',200);
+    updatePreview();
+    updateSendButton();
+  }
+
+  // ── ROLE ──────────────────────────────────────────────
+
+  function onRoleChange() {
+    const newRole = document.getElementById('role-picker').value;
+    // Reload preserving role in URL so backend renders the right template state.
+    const u = new URL(window.location.href);
+    u.searchParams.set('role', newRole);
+    window.location.href = u.toString();
+  }
+
+  // ── URL AUTO-FETCH ────────────────────────────────────
+
+  let _fetchTimer = null;
+
+  function onUrlInput() {
+    updatePreview();
+    clearTimeout(_fetchTimer);
+    const url = document.getElementById('url').value.trim();
+    const status = document.getElementById('url-status');
+    if (!url) { status.textContent = ''; return; }
+    status.style.color = 'var(--light)';
+    status.textContent = 'Fetching article…';
+    _fetchTimer = setTimeout(() => fetchArticle(url), 500);
+  }
+
+  function fetchArticle(url) {
+    const status = document.getElementById('url-status');
+    fetch('/api/fetch-article', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify({ url }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      if (data.headline) {
+        document.getElementById('headline').value = data.headline;
+        updateCharCount('headline', 'hlen', 200);
+
+        // Only auto-fill subject if user hasn't customised it past the default.
+        const subjectEl = document.getElementById('subject');
+        if (subjectEl.value.trim() === '' || subjectEl.value === 'Breaking news: ') {
+          subjectEl.value = 'Breaking news: ' + data.headline;
+          updateCharCount('subject', 'slen', 200);
+        }
+      }
+      if (data.body) {
+        document.getElementById('body').value = data.body;
+        updateCharCount('body', 'blen', 280);
+      }
+      if (data.image_url) {
+        document.getElementById('image-url').value = data.image_url;
+        state.articleImageUrl = data.image_url;
+        const ub = document.getElementById('use-article-img-btn');
+        if (ub) ub.disabled = false;
+      } else {
+        state.articleImageUrl = '';
+        const ub = document.getElementById('use-article-img-btn');
+        if (ub) ub.disabled = true;
+      }
+      updatePreview();
+      status.style.color = 'var(--green)';
+      status.textContent = '✓ Article metadata loaded';
+      checkDuplicate(url);
+    })
+    .catch(() => {
+      status.style.color = '#F59E0B';
+      status.textContent = 'Could not fetch article — enter subject line manually';
+    });
+  }
+
+  function checkDuplicate(url) {
+    fetch('/api/check-duplicate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify({ url }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      const warn = document.getElementById('dup-warn');
+      const text = document.getElementById('dup-warn-text');
+      if (data.duplicate && data.last_sent_at) {
+        const dt = new Date(data.last_sent_at);
+        const hhmm = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const now = new Date();
+        const sameDay = (
+          dt.getFullYear() === now.getFullYear() &&
+          dt.getMonth() === now.getMonth() &&
+          dt.getDate() === now.getDate()
+        );
+        const when = sameDay ? `earlier today at ${hhmm}` : `yesterday at ${hhmm}`;
+        text.textContent = `This URL was already sent ${when} — proceed with caution.`;
+        warn.style.display = 'flex';
+      } else {
+        warn.style.display = 'none';
+      }
+    })
+    .catch(() => { /* non-blocking */ });
+  }
+
+  function useArticleImage() {
+    if (!state.articleImageUrl) return;
+    document.getElementById('image-url').value = state.articleImageUrl;
+    updatePreview();
+  }
+
+  // ── SEGMENTS ──────────────────────────────────────────
+
+  function toggleSegment(id) {
+    state.segments[id] = !state.segments[id];
+    document.getElementById('seg-' + id).classList.toggle('selected', state.segments[id]);
+    updateSegmentHint();
+    updateSegmentPreview();
+    updateSendButton();
+  }
+
+  function updateSegmentHint() {
+    const count = Object.values(state.segments).filter(Boolean).length;
+    const hint = document.getElementById('seg-hint');
+    if (count === 0) {
+      hint.textContent = '⚠️ Select at least one segment';
+      hint.className = 'segment-hint warn';
+    } else {
+      const names = SEGMENTS.filter(s => state.segments[s.id]).map(s => s.flag + ' ' + s.label).join(', ');
+      hint.textContent = `${count} segment${count > 1 ? 's' : ''} selected: ${names}`;
+      hint.className = 'segment-hint';
+    }
+  }
+
+  function updateSegmentPreview() {
+    const container = document.getElementById('seg-pills-preview');
+    const selected = SEGMENTS.filter(s => state.segments[s.id]);
+    if (selected.length === 0) {
+      container.innerHTML = '<span class="segment-pill-empty">No segments selected</span>';
+    } else {
+      container.innerHTML = selected.map(s =>
+        `<span class="segment-pill">${s.flag} ${s.label}</span>`
+      ).join('');
+    }
+  }
+
+  // ── TIMING ────────────────────────────────────────────
+
+  const TIMING_DETAILS = {
+    immediate:   'Immediate send',
+    scheduled:   'Scheduled send',
+  };
+
+  function selectTiming(t) {
+    if (t !== 'immediate' && t !== 'scheduled') return;
+    state.timing = t;
+    ['immediate','scheduled'].forEach(id => {
+      document.getElementById('timing-' + id).className =
+        'timing-btn' + (id === t ? ' selected-' + id : '');
+    });
+    document.getElementById('scheduled-panel').classList.toggle('show', t === 'scheduled');
+    document.getElementById('routing-detail').textContent = TIMING_DETAILS[t];
+    updateSendButton();
+  }
+
+  // ── PREVIEW ───────────────────────────────────────────
+
+  function updatePreview() {
+    const subject = document.getElementById('subject').value.trim();
+    const preheader = document.getElementById('preheader').value.trim();
+    const body = document.getElementById('body').value;
+    const imageUrl = document.getElementById('image-url').value.trim();
+
+    document.getElementById('prev-subject-email').textContent =
+      subject || 'Breaking news: Your subject line';
+    document.getElementById('prev-preheader-email').textContent =
+      preheader || 'Shown in inbox preview';
+
+    const img = document.getElementById('prev-image-email');
+    if (imageUrl) {
+      img.src = imageUrl;
+      img.style.display = 'block';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+    }
+
+    document.getElementById('prev-body-email').textContent =
+      body || 'Your preview text will appear here as the opening body copy, giving readers context before they click through.';
+
+    updateSendButton();
+  }
+
+  // ── CHAR COUNT ────────────────────────────────────────
+
+  function updateCharCount(inputId, countId, max) {
+    const val = document.getElementById(inputId).value.length;
+    const el = document.getElementById(countId);
+    el.textContent = `${val} / ${max}`;
+    el.className = 'char-count' + (val > max * 0.9 ? (val >= max ? ' over' : ' warn') : '');
+  }
+
+  // ── SEND BUTTON ───────────────────────────────────────
+
+  function updateSendButton() {
+    const btn = document.getElementById('send-btn');
+    const testBtn = document.getElementById('send-test-btn-card');
+    const hint = document.getElementById('send-hint');
+    const subject = document.getElementById('subject').value.trim();
+    const hasSegment = Object.values(state.segments).some(Boolean);
+    const schedOk = state.timing !== 'scheduled' || (
+      document.getElementById('sched-date').value &&
+      document.getElementById('sched-time').value
+    );
+    const isViewer = state.role === 'viewer';
+    const canSend  = state.role === 'sender' || state.role === 'trainee';
+    const ready = subject.length > 0 && hasSegment && schedOk && canSend;
+
+    btn.className = ready ? 'ready' : 'disabled';
+    btn.disabled = !ready;
+    if (testBtn) testBtn.disabled = isViewer || subject.length === 0;
+
+    if (isViewer) {
+      btn.textContent = 'Send Newsletter';
+      hint.textContent = 'Read-only role — switch to Sender to send.';
+      return;
+    }
+
+    if (ready) {
+      if (state.role === 'trainee') {
+        btn.textContent = state.timing === 'scheduled'
+          ? '🎓 Practice schedule' : '🎓 Practice send';
+        hint.textContent = 'Trainee mode — sends are recorded but not delivered.';
+      } else if (state.timing === 'scheduled') {
+        btn.textContent = '📅 Schedule Newsletter';
+        hint.textContent = '';
+      } else {
+        btn.textContent = '⚡ Send Newsletter';
+        hint.textContent = '';
+      }
+    } else {
+      btn.textContent = state.role === 'trainee' ? '🎓 Practice send' : 'Send Newsletter';
+      hint.textContent = !subject     ? 'Add a subject line to continue'
+                       : !hasSegment  ? 'Select at least one segment to send.'
+                       : !schedOk     ? 'Set a date and time for the scheduled send'
+                                      : '';
+      if (state.role === 'trainee' && hasSegment && subject && schedOk) {
+        hint.textContent = 'Trainee mode — sends are recorded but not delivered.';
+      }
+    }
+  }
+
+  // ── SEND ──────────────────────────────────────────────
+
+  function _collectPayload() {
+    return {
+      headline:  document.getElementById('headline').value.trim(),
+      subject:   document.getElementById('subject').value.trim(),
+      preheader: document.getElementById('preheader').value.trim(),
+      body:      document.getElementById('body').value.trim(),
+      url:       document.getElementById('url').value.trim(),
+      image_url: document.getElementById('image-url').value.trim(),
+      role:      state.role,
+      segments:  SEGMENTS.filter(s => state.segments[s.id]).map(s => s.label),
+    };
+  }
+
+  function sendAlert() {
+    const btn = document.getElementById('send-btn');
+    if (btn.classList.contains('disabled') || btn.classList.contains('sent')) return;
+
+    const schedDate = document.getElementById('sched-date').value;
+    const schedTime = document.getElementById('sched-time').value;
+
+    // Convert local date+time to bare UTC ISO-8601 (no Z, no offset) as required by Braze
+    let schedAt = null;
+    if (state.timing === 'scheduled' && schedDate && schedTime) {
+      schedAt = new Date(`${schedDate}T${schedTime}`).toISOString().slice(0, 19);
+    }
+
+    const payload = Object.assign(_collectPayload(), {
+      timing: state.timing,
+      sched_at: schedAt,
+    });
+
+    fetch('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify(payload),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) {
+        alert('Send failed: ' + (data.error || 'Unknown error'));
+        updateSendButton();
+        return;
+      }
+
+      btn.className = 'sent';
+      const isPractice = !!data.trainee_practice;
+      btn.textContent = isPractice ? '✓ Practice recorded' : '✓ Dispatched';
+
+      const titles = {
+        immediate: 'Breaking news email sent',
+        scheduled: `Breaking news email scheduled for ${schedDate} ${schedTime} (local)`,
+      };
+      const banner = document.getElementById('success-banner');
+      banner.classList.remove('kind-test','kind-practice');
+      if (isPractice) {
+        document.getElementById('success-title').textContent = 'Practice send recorded (Braze not called)';
+        document.getElementById('success-sub').textContent = 'Trainee mode — nothing was delivered to subscribers.';
+        banner.classList.add('kind-practice');
+      } else {
+        document.getElementById('success-title').textContent = titles[state.timing] || titles.immediate;
+        document.getElementById('success-sub').textContent = '';
+      }
+      banner.classList.add('show');
+      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      setTimeout(() => updateSendButton(), 3000);
+    })
+    .catch(() => {
+      alert('Send failed: network error');
+      updateSendButton();
+    });
+  }
+
+  function sendTest() {
+    const testBtn = document.getElementById('send-test-btn-card');
+    if (!testBtn || testBtn.disabled || state.sendingTest) return;
+    const recipient = document.getElementById('test-recipient').value.trim();
+    if (!recipient) {
+      alert('Enter a test recipient email');
+      return;
+    }
+    state.sendingTest = true;
+    testBtn.textContent = 'Sending test…';
+
+    const payload = Object.assign(_collectPayload(), { test_recipient: recipient });
+
+    fetch('/api/send-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify(payload),
+    })
+    .then(r => r.json())
+    .then(data => {
+      state.sendingTest = false;
+      testBtn.textContent = '🧪 Send test email';
+      if (!data.success) {
+        alert('Test send failed: ' + (data.error || 'Unknown error'));
+        return;
+      }
+      const banner = document.getElementById('success-banner');
+      banner.classList.remove('kind-practice');
+      banner.classList.add('kind-test');
+      document.getElementById('success-title').textContent = `Test email sent to ${recipient}`;
+      document.getElementById('success-sub').textContent = 'Test send only — subscribers were not emailed.';
+      banner.classList.add('show');
+      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    })
+    .catch(() => {
+      state.sendingTest = false;
+      testBtn.textContent = '🧪 Send test email';
+      alert('Test send failed: network error');
+    });
+  }
+
+  function dismissSuccess() {
+    const banner = document.getElementById('success-banner');
+    banner.classList.remove('show','kind-test','kind-practice');
+  }
+
+  // ── BOOT ──────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
