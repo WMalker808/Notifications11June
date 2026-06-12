@@ -4,7 +4,7 @@
 
 Dispatch is a single-page internal web tool for sending breaking news newsletters via the Braze customer engagement platform. A user pastes a Guardian article URL, the app fetches the headline and preview text automatically, the user customises subject/preheader/image and timing, and submits. The Flask backend then calls the Braze REST API to send or schedule the campaign.
 
-The tool also exposes a separate `/audit` page that lists pending scheduled sends and recent activity, plus a mock role picker (Sender / Trainee / Viewer) so the workshop prototype can demonstrate access control and a trainee dry-run mode without real authentication.
+The tool includes a mock role picker (Sender / Trainee / Viewer) so the workshop prototype can demonstrate access control and a trainee dry-run mode without real authentication. Send activity is recorded in an in-memory audit log on the backend (it powers duplicate detection), but there is no UI for viewing it — the audit page was removed.
 
 ---
 
@@ -161,25 +161,9 @@ return render_template("index.html", csrf_token=session["csrf_token"], role=role
 
 ---
 
-#### `GET /audit`
-
-Renders `audit.html`, the activity page. Shows two tables:
-1. **Pending scheduled sends** — every entry currently in `SCHEDULED_SENDS`, with a Cancel button per row.
-2. **Recent activity** — the most recent 200 entries from `AUDIT_LOG`, with a client-side substring filter input above the table.
-
-Both stores are module-level Python lists/dicts and reset on Flask restart (prototype only — no persistence).
-
----
-
 #### `POST /api/send-test`
 
 Mocks a test send. Same payload as `/api/send` plus a `test_recipient` string. In the current build, no real Braze test-call is made — the send is appended to `AUDIT_LOG` with `kind="test"` and `{"success": true}` is returned. Viewers are blocked (403). The compose page surfaces a clearly different (amber) success banner for test sends.
-
----
-
-#### `POST /api/cancel-scheduled`
-
-Body: `{ "id": "<scheduled-send-uuid>" }`. Removes the entry from `SCHEDULED_SENDS` and appends a `kind="cancel"` entry to `AUDIT_LOG` (referencing the cancelled id). Returns `{"success": true}` or 404 if id is unknown. No real Braze schedule-cancellation API call is made (prototype gap noted in the Deferred section).
 
 ---
 
@@ -237,7 +221,7 @@ Triggers a newsletter send via Braze.
 | Mode | Backend action |
 |---|---|
 | `immediate` | Calls `_braze_send()` — sends right now |
-| `scheduled` | Calls `_braze_schedule()` with `sched_at` as the time. Returns 400 if `sched_at` is missing. `sched_at` is a bare UTC ISO-8601 string (`YYYY-MM-DDTHH:MM:SS`) converted from the user's local date/time by the browser. Also adds an entry to `SCHEDULED_SENDS` so it can be cancelled from `/audit`. |
+| `scheduled` | Calls `_braze_schedule()` with `sched_at` as the time. Returns 400 if `sched_at` is missing, malformed, or in the past. `sched_at` is a bare UTC ISO-8601 string (`YYYY-MM-DDTHH:MM:SS`) converted from the user's local date/time by the browser. Also adds an entry to `SCHEDULED_SENDS` (no UI exists to view or cancel these since the audit page was removed). |
 
 Intelligent timing mode has been removed (stakeholders said it wasn't needed).
 
@@ -479,9 +463,9 @@ This build addresses the top-voted stakeholder requirements (see `Breaking news 
 |---|---|
 | Preview & testing (preheader render, image swap, send-test) | 7 |
 | Access control (mock Sender/Trainee/Viewer role chip) | 4 |
-| Tracking & monitoring (audit log + UTM tracking) | 4 |
+| Tracking & monitoring (backend audit log + UTM tracking; audit page since removed) | 4 |
 | Subject-line customisation (200-char cap, editable prefix, preheader) | 3 |
-| Schedule handling (intelligent removed, cancel scheduled from /audit) | 3 |
+| Schedule handling (intelligent removed; cancel UI removed with the audit page) | 3 |
 | Duplicate detection (6h window, non-blocking banner) | 2 |
 | Simpler interface (single page, mental-model field order) | 2 |
 
@@ -499,5 +483,6 @@ This build addresses the top-voted stakeholder requirements (see `Breaking news 
 - Live-blog specific block selector.
 - Send-corrections dedicated flow.
 - Real Braze API test-send (currently mocked — `/api/send-test` only writes to the audit log).
-- Real Braze schedule cancellation (currently drops from in-memory store and audit-logs the action).
+- Schedule cancellation — the audit page that hosted the cancel UI has been removed, and no real Braze schedule-cancellation call ever existed; once scheduled, a send cannot currently be cancelled from this tool.
+- Audit log UI — `AUDIT_LOG` is still written on every send (it powers duplicate detection) but is no longer viewable.
 - Persistence across server restarts (`AUDIT_LOG` and `SCHEDULED_SENDS` are module-level, reset on restart).

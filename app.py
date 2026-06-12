@@ -347,49 +347,6 @@ def send_test():
     return jsonify({"success": True})
 
 
-@app.route("/audit")
-def audit():
-    session["csrf_token"] = session.get("csrf_token") or secrets.token_hex(32)
-    role = request.args.get("role", "sender")
-    if role not in _VALID_ROLES:
-        role = "sender"
-    return render_template(
-        "audit.html",
-        csrf_token=session["csrf_token"],
-        audit_log=AUDIT_LOG[:200],
-        scheduled=list(SCHEDULED_SENDS.values()),
-        role=role,
-    )
-
-
-@app.route("/api/cancel-scheduled", methods=["POST"])
-def cancel_scheduled():
-    err = _require_csrf()
-    if err:
-        return err
-
-    data = request.json or {}
-    sid = data.get("id")
-    if not sid or sid not in SCHEDULED_SENDS:
-        return jsonify({"success": False, "error": "Not found"}), 404
-
-    removed = SCHEDULED_SENDS.pop(sid)
-    _append_audit({
-        "id": str(uuid.uuid4()),
-        "ts": _now_iso(),
-        "role": data.get("role", "sender"),
-        "kind": "cancel",
-        "timing": "n/a",
-        "headline": removed.get("headline", ""),
-        "subject": removed.get("subject", ""),
-        "preheader": removed.get("preheader", ""),
-        "url": removed.get("url", ""),
-        "cancelled_id": sid,
-        "status": "ok",
-    })
-    return jsonify({"success": True})
-
-
 @app.route("/api/check-duplicate", methods=["POST"])
 def check_duplicate():
     err = _require_csrf()
